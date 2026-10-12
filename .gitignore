@@ -1,0 +1,11 @@
+# Byte-compiled / optimized / URL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Index database
+.code_index.json
+
+# OS files
+.DS_Store
+Thumbs.db
