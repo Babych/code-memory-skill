@@ -48,27 +48,45 @@ Code discovery and retrieval have evolved through three distinct eras:
 
 ---
 
-## 📦 Quick Start
+## 🤖 Autonomous AI Workflow (Zero Manual Typing)
 
-### 1. Copy into your project
-Drop `scripts/code_memory.py` into your project's `scripts/` directory:
-```bash
-mkdir -p scripts
-curl -o scripts/code_memory.py https://raw.githubusercontent.com/Babych/code-memory-skill/main/scripts/code_memory.py
+You don't need to run search commands manually. The AI agent executes this tool autonomously:
+
+```mermaid
+flowchart LR
+    User["Developer Request<br/>'Add refresh token flow'"] --> Agent["AI Coding Agent<br/>(Claude, GPT, Gemini)"]
+    Agent -->|Autonomously calls| CM["code_memory.py search"]
+    CM -->|Returns exact slice| Slice["📍 auth.js (Lines 42-78)"]
+    Slice -->|Surgical read/edit| Fix["Atomic Edit<br/>~300 tokens used"]
 ```
 
-Add `.code_index.json` to your `.gitignore`:
-```bash
-echo ".code_index.json" >> .gitignore
-```
+### 1. Give the Skill to Your Agent
+Simply clone this repository or drop `SKILL.md` into your agent's skills directory:
+- **Antigravity / Gemini:** Clone to your skills directory or reference via prompt.
+- **Claude Code:** Add to `CLAUDE.md` or tools directory.
+- **Cursor / Windsurf:** Add to `.cursorrules` or `.windsurfrules`.
 
-### 2. Build index
+### 2. Prompt Naturally
+Ask your agent to implement a feature, find a bug, or explore the architecture:
+> *"Implement user session refresh in the authentication flow."*
+
+The AI agent will:
+1. Detect that the repository has large/monolithic files.
+2. Autonomously execute `python scripts/code_memory.py search "session refresh"`.
+3. Receive the exact file and line bounds (`Lines 42 - 78`).
+4. Read and modify *only* that slice—saving 80–90% of context tokens with zero token bloat.
+
+---
+
+## 🛠️ CLI Reference (For Debugging / Manual Verification)
+
+If you ever want to test or inspect the index manually:
+
 ```bash
+# Rebuild the local chunk index (.code_index.json)
 python scripts/code_memory.py index
-```
 
-### 3. Search code
-```bash
+# Search for symbols or concepts
 python scripts/code_memory.py search "jwt refresh token expiry middleware"
 ```
 
@@ -84,20 +102,6 @@ python scripts/code_memory.py search "jwt refresh token expiry middleware"
 📍 src/controllers/authController.js (Lines 112 - 145) [Score: 0.284]
    | const newToken = await refreshUserSession(refreshToken);
 ------------------------------------------------------------
-```
-
----
-
-## 🤖 Using as an Antigravity / Cursor Skill
-
-1. Place `SKILL.md` into your `.agents/skills/code-memory/` or `~/.gemini/antigravity/skills/code-memory/`.
-2. Add this instruction to your project's `AGENTIC.md`, `CLAUDE.md`, or system prompt:
-
-```markdown
-### Token-Saving Protocol
-Before reading files with more than 300 lines, run:
-`python scripts/code_memory.py search "<keyword>"`
-Use the returned line numbers to view only the relevant lines with surgical range reads.
 ```
 
 ---
