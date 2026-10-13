@@ -16,8 +16,16 @@ This skill provides a **zero-dependency, 100% offline sparse-vector & symbol sea
 
 ## ⚡ When to Use
 - Before editing or reading large files (>300 lines).
-- When searching for specific business logic, state variables, or API handlers.
+- When searching for specific business logic, state variables, or API handlers in unfamiliar or multi-layered codebases.
+- When locating feature implementation sites or call sites across whole repositories.
 - When minimizing LLM context tokens and avoiding context degradation.
+
+---
+
+## 🚫 When NOT to Use
+- **Git Diffs & Branch Reviews:** Do not index or search the repository for commit/PR reviews. Always use native `git diff`, `git log`, or `git show` directly, as changes are already isolated.
+- **Exact File & Line Already Known:** Target known files directly with surgical line reads (`view_file`, `head/tail`, or IDE range tools).
+- **Small Files (<300 lines):** Inspect directly without indexing.
 
 ---
 

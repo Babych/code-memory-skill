@@ -9,14 +9,33 @@
 
 ---
 
-## 🎯 Why This Exists
+## 🏛️ Historical Context & Architectural Lineage
 
-When AI coding assistants refactor code or implement features, they often read entire files into their context window. In projects with monolithic files (e.g., 4,000+ line HTML files or 2,000+ line backend controllers):
-- Reading a file costs **15,000 – 35,000 tokens per prompt**.
-- AI quotas burn out within minutes.
-- Long contexts degrade AI reasoning quality (Lost-in-the-Middle phenomenon).
+Code discovery and retrieval have evolved through three distinct eras:
 
-**Code Memory** indexes code into overlapping syntactic chunks using an offline BM25/TF-IDF sparse-vector algorithm with camelCase, snake_case, and multilingual tokenization. The AI retrieves **only the exact 20–30 lines** it needs to modify, dropping token consumption to ~500–1,500 tokens.
+1. **The Classical Era (1990s–2000s: `ctags`, `gtags`, BM25 / LSI):**
+   Vim and Emacs hackers mastered sub-millisecond symbol lookup using static tag files. It was lightning fast and zero-overhead, but predated LLMs—lacking semantic/fuzzy search and unaware of modern AI agent tool boundaries.
+2. **The Intermediate Era (Aider’s Repo Map):**
+   Paul Gauthier’s [Aider](https://aider.chat/) introduced AST parsing with PageRank to build condensed repository maps. However, it injects the entire map into every prompt turn and isn't packaged as an on-demand, queryable CLI tool for external agents.
+3. **The Heavyweight Era (Cursor, Sourcegraph Cody, Vector DBs):**
+   Modern tools turned to heavy local vector databases (ChromaDB, Pinecone, LanceDB) or cloud embedding APIs. While powerful, they introduce multi-gigabyte dependencies (PyTorch), high background memory usage, and friction in locked-down or air-gapped environments.
+
+**Code Memory synthesizes the best of these approaches:**
+- From **`ctags`**: Zero external dependencies and deterministic offline speed.
+- From **IR / BM25**: Fuzzy, camelCase/snake_case sub-token retrieval without neural network overhead.
+- From **Modern Agent Tooling**: Native output formatting (`Lines 42 - 78`) specifically designed for LLM range tools (`StartLine`/`EndLine`).
+
+---
+
+## ⚖️ When to Use vs. When NOT to Use
+
+| Task Type | Recommended Strategy | Reason |
+| :--- | :--- | :--- |
+| **Branch / PR Reviews & Git Diffs** | 🛑 Use native `git diff` / `git log` | Git already isolates the exact line changes; indexing adds unnecessary overhead. |
+| **Small Files (<300 lines)** | 🛑 Direct read (`view_file`) | Fits comfortably in context; chunking provides marginal benefit. |
+| **Feature Work & Unknown Call Sites** | ⚡ **Use Code Memory** | Pinpoints exact function boundaries across unfamiliar multi-layer repos. |
+| **Monolithic Files (>300 lines)** | ⚡ **Use Code Memory** | Avoids dumping thousands of lines, saving 80–90% of context tokens. |
+| **Exploratory Bug Hunting** | ⚡ **Use Code Memory** | Rapidly surfaces business logic and formula definitions. |
 
 ---
 
