@@ -13,7 +13,7 @@
 
 Code discovery and retrieval have evolved through three distinct eras:
 
-1. **The Classical Era (1990s–2000s: `ctags`, `gtags`, BM25 / LSI):**
+1. **The Classical Era (1990s–2000s: `ctags`, `gtags`, [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) / LSI):**
    Vim and Emacs hackers mastered sub-millisecond symbol lookup using static tag files. It was lightning fast and zero-overhead, but predated LLMs—lacking semantic/fuzzy search and unaware of modern AI agent tool boundaries.
 2. **The Intermediate Era (Aider’s Repo Map):**
    Paul Gauthier’s [Aider](https://aider.chat/) introduced AST parsing with PageRank to build condensed repository maps. However, it injects the entire map into every prompt turn and isn't packaged as an on-demand, queryable CLI tool for external agents.
@@ -22,7 +22,7 @@ Code discovery and retrieval have evolved through three distinct eras:
 
 **Code Memory synthesizes the best of these approaches:**
 - From **`ctags`**: Zero external dependencies and deterministic offline speed.
-- From **IR / BM25**: Fuzzy, camelCase/snake_case sub-token retrieval without neural network overhead.
+- From **IR / [BM25](https://en.wikipedia.org/wiki/Okapi_BM25)**: Fuzzy, camelCase/snake_case sub-token retrieval without neural network overhead.
 - From **Modern Agent Tooling**: Native output formatting (`Lines 42 - 78`) specifically designed for LLM range tools (`StartLine`/`EndLine`).
 
 ---
