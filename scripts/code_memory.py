@@ -25,7 +25,7 @@ if sys.platform == "win32":
         pass
 
 INDEX_FILE_NAME = ".code_index.json"
-INDEX_VERSION = 4
+INDEX_VERSION = 6
 
 DEFAULT_EXTS = {
     ".js", ".ts", ".jsx", ".tsx", ".vue", ".html", ".css",
@@ -67,8 +67,14 @@ FUNC_DEF_PATTERN = re.compile(
     re.MULTILINE
 )
 
-# Regex to strip string literals and single-line comments before counting braces
-STRING_OR_COMMENT_RE = re.compile(r'("(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//.*$|#.*$)')
+# Robust regex to strip block comments, string literals, and single-line comments before counting braces
+STRING_OR_COMMENT_RE = re.compile(
+    r'/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//.*?$|#.*?$',
+    re.MULTILINE | re.DOTALL
+)
+LINE_COMMENT_OR_STRING_RE = re.compile(
+    r'/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//.*$|#.*$'
+)
 
 CONTROL_KEYWORDS = {
     "if", "for", "foreach", "while", "switch", "catch", "using", "lock",
@@ -96,7 +102,6 @@ def tokenize(text, remove_stopwords=True):
 
 
 def extract_symbols_and_def_lines(lines):
-    """Finds definition line indices and extracts clean symbol tokens."""
     def_lines = set()
     line_symbols = {}
 
@@ -128,7 +133,6 @@ def extract_symbols_and_def_lines(lines):
 
 
 def include_leading_decorators(lines, def_idx):
-    """Steps backwards 1-3 lines to include attributes/decorators like [HttpPost] or @override."""
     start = def_idx
     for back in range(1, 4):
         cand = def_idx - back
@@ -142,52 +146,51 @@ def include_leading_decorators(lines, def_idx):
     return start
 
 
-def compute_smart_end_line(lines, start_line, def_idx, def_set, is_python=False, min_size=22, target_size=48, max_size=70):
+def compute_smart_end_line(lines, start_line, def_idx, def_set, is_python=False, min_size=5):
     """
-    Finds a natural logical boundary:
-    - For Python: tracks indentation level returning to or above the def_idx indent.
-    - For brace languages: strips strings/comments and tracks { ... } balance.
+    Finds natural logical boundaries without arbitrary length caps,
+    tracking Python indentation or brace balance across comments/strings.
     """
     n_lines = len(lines)
-    effective_min = min(min_size, 10)
+    if start_line >= n_lines:
+        return n_lines
+
     if is_python and def_idx < n_lines:
         base_indent = len(lines[def_idx]) - len(lines[def_idx].lstrip())
-        for idx in range(def_idx + 1, min(n_lines, start_line + max_size)):
+        for idx in range(def_idx + 1, n_lines):
             stripped = lines[idx].strip()
             if not stripped or stripped.startswith("#"):
                 continue
             curr_indent = len(lines[idx]) - len(lines[idx].lstrip())
-            if curr_indent <= base_indent and (idx - start_line) >= effective_min:
+            if curr_indent <= base_indent and (idx - start_line) >= 5:
                 return include_leading_decorators(lines, idx)
     else:
         brace_balance = 0
         saw_open_brace = False
-        for idx in range(start_line, min(n_lines, start_line + max_size)):
-            if idx >= start_line + min_size and idx in def_set:
+        def _strip_keep_newlines(m):
+            return "\n" * m.group(0).count("\n")
+        full_text = "\n".join(lines[start_line:])
+        clean_text = STRING_OR_COMMENT_RE.sub(_strip_keep_newlines, full_text)
+        clean_lines = clean_text.splitlines()
+
+        for offset, clean_line in enumerate(clean_lines):
+            idx = start_line + offset
+            if idx >= start_line + 10 and idx in def_set:
                 return include_leading_decorators(lines, idx)
 
-            clean_line = STRING_OR_COMMENT_RE.sub("", lines[idx])
             open_c = clean_line.count("{")
             close_c = clean_line.count("}")
             if open_c > 0:
                 saw_open_brace = True
             brace_balance += (open_c - close_c)
 
-            if saw_open_brace and brace_balance <= 0 and (idx - start_line) >= effective_min:
+            if saw_open_brace and brace_balance <= 0 and (idx - start_line) >= 3:
                 return idx + 1
 
-    # Fallback: snap to nearest blank line around target_size
-    for offset in range(0, 15):
-        for candidate in (start_line + target_size + offset, start_line + target_size - offset):
-            if start_line + min_size <= candidate < n_lines:
-                if not lines[candidate].strip():
-                    return candidate
-
-    return min(n_lines, start_line + target_size)
+    return n_lines
 
 
 def get_git_state(root_dir="."):
-    """Returns a deterministic fingerprint of git HEAD + working tree status."""
     try:
         head = subprocess.run(
             ["git", "-C", root_dir, "rev-parse", "HEAD"],
@@ -206,7 +209,6 @@ def get_git_state(root_dir="."):
 
 
 def iter_source_files(root_dir="."):
-    """Yields valid source files while pruning ignored directories early via os.walk."""
     root = Path(root_dir).resolve()
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [
@@ -225,22 +227,34 @@ def iter_source_files(root_dir="."):
 
 
 def ensure_git_exclude(root_dir="."):
-    """Automatically adds .code_index.json to .git/info/exclude so agents never commit it."""
-    exclude_file = Path(root_dir) / ".git" / "info" / "exclude"
-    if exclude_file.exists():
-        try:
-            content = exclude_file.read_text(encoding="utf-8", errors="ignore")
+    """Robustly locates and updates git info/exclude, supporting worktrees and submodules."""
+    try:
+        res = subprocess.run(
+            ["git", "-C", root_dir, "rev-parse", "--git-path", "info/exclude"],
+            capture_output=True, text=True, timeout=2
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            exclude_file = Path(root_dir) / res.stdout.strip()
+        else:
+            exclude_file = Path(root_dir) / ".git" / "info" / "exclude"
+
+        if exclude_file.parent.exists() or exclude_file.parent.mkdir(parents=True, exist_ok=True):
+            content = exclude_file.read_text(encoding="utf-8", errors="ignore") if exclude_file.exists() else ""
             if INDEX_FILE_NAME not in content:
                 with exclude_file.open("a", encoding="utf-8") as f:
                     f.write(f"\n{INDEX_FILE_NAME}\n")
-        except Exception:
-            pass
+    except Exception as e:
+        print(f"⚠️ Warning: Could not update git exclude file: {e}", file=sys.stderr)
 
 
 def chunk_single_file(path, rel_path):
-    """Chunks a single source file into boundary-aligned blocks anchored to definitions."""
     file_chunks = []
-    content = path.read_text(encoding="utf-8", errors="ignore")
+    try:
+        content = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to read {rel_path}: {e}", file=sys.stderr)
+        return file_chunks
+
     lines = content.splitlines()
     n_lines = len(lines)
     if n_lines == 0:
@@ -251,11 +265,11 @@ def chunk_single_file(path, rel_path):
     def_set = set(def_indices)
 
     if not def_indices:
-        step = 35
+        step = 50
         i = 0
         while i < n_lines:
             start_line = i
-            end_line = min(n_lines, start_line + 50)
+            end_line = min(n_lines, start_line + 80)
             chunk_lines = lines[start_line:end_line]
             if chunk_lines:
                 chunk_text = "\n".join(chunk_lines)
@@ -294,13 +308,12 @@ def chunk_single_file(path, rel_path):
                         symbols.extend(line_symbols[line_idx])
 
                 all_words = list(set(words).union(set(symbols)))
-                is_truncated = end_line < n_lines and (end_line - start_line) >= 80
                 file_chunks.append({
                     "file": rel_path,
                     "start_line": start_line + 1,
                     "end_line": end_line,
                     "total_lines": n_lines,
-                    "truncated": is_truncated,
+                    "truncated": False,
                     "words": all_words,
                     "symbols": list(set(symbols)),
                     "header": chunk_lines[0].strip()[:100]
@@ -310,10 +323,6 @@ def chunk_single_file(path, rel_path):
 
 
 def build_or_update_index(root_dir=".", force_full=False, quiet=False):
-    """
-    Builds or incrementally updates the index.
-    Only re-parses files whose mtime changed since the last index build!
-    """
     index_path = Path(root_dir) / INDEX_FILE_NAME
     existing_file_mtimes = {}
     existing_chunks_by_file = {}
@@ -335,7 +344,9 @@ def build_or_update_index(root_dir=".", force_full=False, quiet=False):
     for path, root in iter_source_files(root_dir):
         try:
             stat = path.stat()
-            if stat.st_size > 2 * 1024 * 1024:
+            if stat.st_size > 5 * 1024 * 1024:  # Raised threshold to 5MB with warning
+                if not quiet:
+                    print(f"⚠️ Skipping large file (>5MB): {path.relative_to(root)}", file=sys.stderr)
                 continue
             rel_path = path.relative_to(root).as_posix()
             mtime = round(stat.st_mtime, 3)
@@ -346,8 +357,9 @@ def build_or_update_index(root_dir=".", force_full=False, quiet=False):
             else:
                 all_chunks.extend(chunk_single_file(path, rel_path))
                 reindexed_count += 1
-        except Exception:
-            pass
+        except Exception as e:
+            if not quiet:
+                print(f"⚠️ Error processing {path}: {e}", file=sys.stderr)
 
     deleted_files = set(existing_file_mtimes.keys()) - set(new_file_mtimes.keys())
     if reindexed_count > 0 or deleted_files or force_full or not index_path.exists():
@@ -368,12 +380,6 @@ def build_or_update_index(root_dir=".", force_full=False, quiet=False):
 
 
 def extract_chunk_view(root_dir, file_rel_path, start_line, end_line, query_tokens, full_slice=False, fallback_header=""):
-    """
-    Reads the file slice.
-    If full_slice=True (used for Top-1 Zero-Hop result), returns exact untruncated lines
-    with line numbers so agents can perform immediate surgical edits without calling Read/view_file.
-    Otherwise, returns a compact 4-line dynamic preview centered on the best keyword match.
-    """
     fpath = Path(root_dir) / file_rel_path
     try:
         lines = fpath.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -382,12 +388,8 @@ def extract_chunk_view(root_dir, file_rel_path, start_line, end_line, query_toke
             return [(start_line, fallback_header)]
 
         if full_slice:
-            # Preserve exact line text (up to 800 chars safety guard against minified lines)
-            # so agent Edit/replace tools match exact indentation and line endings.
-            return [
-                (start_line + idx, text.rstrip("\r\n") if len(text) <= 800 else text[:800] + " ...")
-                for idx, text in enumerate(chunk_lines)
-            ]
+            # Preserve full line text without arbitrary length clamping
+            return [(start_line + idx, text.rstrip("\r\n")) for idx, text in enumerate(chunk_lines)]
 
         scored_lines = []
         for idx, text in enumerate(chunk_lines):
@@ -421,10 +423,31 @@ def extract_chunk_view(root_dir, file_rel_path, start_line, end_line, query_toke
         return [(start_line, fallback_header)]
 
 
+def search_references(symbol, root_dir="."):
+    """
+    Finds every occurrence of a symbol across all source files for refactoring safety.
+    Guarantees no call site is omitted.
+    """
+    root = Path(root_dir).resolve()
+    symbol_lower = symbol.lower()
+    matches = 0
+
+    print(f"\n🔍 All reference occurrences across codebase for: '{symbol}'\n" + "=" * 68)
+    for path, _ in iter_source_files(root_dir):
+        try:
+            rel_path = path.relative_to(root).as_posix()
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            for idx, line in enumerate(lines):
+                if symbol_lower in line.lower():
+                    matches += 1
+                    print(f"📍 {rel_path} | L{idx + 1:<4} | {line.strip()[:110]}")
+        except Exception:
+            pass
+    print("=" * 68)
+    print(f"Found {matches} reference locations.")
+
+
 def search(query, top_k=3, mode="smart", root_dir="."):
-    """
-    Performs BM25/IDF sparse retrieval with symbol boosting and incremental delta refresh.
-    """
     chunks = build_or_update_index(root_dir, force_full=False, quiet=True)
 
     query_tokens = set(tokenize(query, remove_stopwords=True))
@@ -494,14 +517,13 @@ def search(query, top_k=3, mode="smart", root_dir="."):
 
     print(f"\n🔍 Top {len(selected)} relevant code locations for: '{query}'\n" + "=" * 68)
     for rank, (score, item) in enumerate(selected):
-        trunc_note = " [Large block - continues below]" if item.get("truncated") else ""
         total_l = item.get("total_lines", "?")
         show_full = (mode == "full") or (mode == "smart" and rank == 0)
         tag = " [TOP MATCH - FULL SLICE]" if (mode == "smart" and rank == 0) else ""
 
         print(
             f"📍 {item['file']} (Lines {item['start_line']} - {item['end_line']} of {total_l})"
-            f" [Score: {score:.2f}]{tag}{trunc_note}"
+            f" [Score: {score:.2f}]{tag}"
         )
         view_lines = extract_chunk_view(
             root_dir, item["file"], item["start_line"], item["end_line"],
@@ -513,7 +535,6 @@ def search(query, top_k=3, mode="smart", root_dir="."):
 
 
 def parse_cli_args(argv):
-    """Lightweight zero-dependency CLI flag parser."""
     top_k = 3
     mode = "smart"
     root_dir = "."
@@ -552,6 +573,7 @@ if __name__ == "__main__":
         print("Code Memory - Zero-VRAM BM25 & Symbol Search for Cloud & Local AI Agents\n")
         print("Usage:")
         print("  python code_memory.py search <query> [--top 3] [--brief|--full] [--path .]")
+        print("  python code_memory.py refs <symbol>")
         print("  python code_memory.py index [path]")
         sys.exit(0)
 
@@ -559,6 +581,12 @@ if __name__ == "__main__":
     if cmd == "index":
         target_dir = sys.argv[2] if len(sys.argv) > 2 and os.path.isdir(sys.argv[2]) else "."
         build_or_update_index(target_dir, force_full=True, quiet=False)
+    elif cmd == "refs":
+        symbol = sys.argv[2] if len(sys.argv) > 2 else ""
+        if symbol:
+            search_references(symbol)
+        else:
+            print("❌ Please specify a symbol to find references for.")
     elif cmd == "search":
         q, k, m, r_dir = parse_cli_args(sys.argv[2:])
         search(q, top_k=k, mode=m, root_dir=r_dir)

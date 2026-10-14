@@ -4,6 +4,7 @@
 > Reduces LLM context token usage and local Prompt Processing time (TTFT) by **80–90%** while cutting agent tool-call round-trips in half.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![CI Tests](https://github.com/babych/zero-hop-code-skill/actions/workflows/test.yml/badge.svg)](https://github.com/babych/zero-hop-code-skill/actions/workflows/test.yml)
 [![Python: 3.7+](https://img.shields.io/badge/Python-3.7%2B-brightgreen.svg)](https://python.org)
 [![Dependencies: Zero](https://img.shields.io/badge/Dependencies-Zero-success.svg)]()
 [![VRAM Overhead: 0 MB](https://img.shields.io/badge/VRAM_Overhead-0_MB-orange.svg)]()
@@ -101,6 +102,9 @@ Ask your agent naturally:
 ```bash
 # Search for symbols or concepts (auto-indexes & delta-refreshes automatically!)
 python scripts/code_memory.py search "jwt refresh token expiry middleware"
+
+# Find all reference call sites across codebase (guaranteed no omissions)
+python scripts/code_memory.py refs "verifyRefreshToken"
 
 # Optional flags:
 #   --top, -k <N>   Number of results to return (default: 3)

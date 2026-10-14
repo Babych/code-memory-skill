@@ -68,7 +68,13 @@ python scripts/code_memory.py search "jwt refresh token expiry middleware"
 ### 2. Immediate Zero-Hop Edits
 Because `[TOP MATCH - FULL SLICE]` outputs exact, untruncated lines with line numbers (`L42 | ...`), you can execute your edit tool (`Edit` / `replace_file_content`) immediately without calling `Read` / `view_file` first.
 
-### 3. Optional CLI Flags
+### 3. Exhaustive Call-Site & Symbol References (`refs`)
+When renaming a method, modifying an interface, or tracking down all usages across the repository without omissions:
+```bash
+python scripts/code_memory.py refs "<symbolName>"
+```
+
+### 4. Optional CLI Flags
 - `--top <N>` or `-k <N>`: Change number of returned matches (default: `3`).
 - `--full`: Expand full brace-aligned slices for **all** top matches instead of just `#1`.
 - `--brief`: Show compact 4-line previews for all matches.
