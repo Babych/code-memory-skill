@@ -1,29 +1,36 @@
 # ⚡ Code Memory Skill
 
-> **Zero-dependency local vector & symbol search for AI coding agents (Antigravity, Cursor, Claude Code, Windsurf, Aider).**  
-> Reduces LLM context token usage by **80–90%** during codebase refactoring.
+> **Zero-dependency, 0 MB VRAM local BM25/IDF & symbol search for AI coding agents (Antigravity, Gemini CLI, Claude Code, Cursor, Windsurf, Continue.dev, Cline / Roo Code, Aider).**  
+> Reduces LLM context token usage and local Prompt Processing time (TTFT) by **80–90%**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.7+](https://img.shields.io/badge/Python-3.7%2B-brightgreen.svg)](https://python.org)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-success.svg)]()
+[![Dependencies: Zero](https://img.shields.io/badge/Dependencies-Zero-success.svg)]()
+[![VRAM Overhead: 0 MB](https://img.shields.io/badge/VRAM_Overhead-0_MB-orange.svg)]()
 
 ---
 
-## 🏛️ Historical Context & Architectural Lineage
+## 💡 Why This Exists (The Cloud Quota & Local VRAM Problem)
 
-Code discovery and retrieval have evolved through three distinct eras:
+When AI coding agents navigate repositories with large files (1,000–4,000+ lines), two bad things happen:
+1. **On Cloud APIs (Gemini Flash/Pro, Claude, GPT):** Reading monolithic files burns 20,000–40,000 tokens per turn, exhausting rate limits and polluting attention.
+2. **On Local LLMs (Ollama, llama.cpp, LM Studio on 8GB–16GB laptops):**
+   - Dumping a 2,000-line file into an 8K/16K context window causes **60–120 seconds of prompt processing (prefill) lag** on laptop GPUs/APUs and pushes the KV cache into system RAM swap.
+   - Traditional RAG tools require heavy vector DBs (ChromaDB, LanceDB, PyTorch) and local embedding models (`nomic-embed-text`, `bge-m3`) that eat **500MB–1.2GB of precious VRAM**.
 
-1. **The Classical Era (1990s–2000s: `ctags`, `gtags`, [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) / LSI):**
-   Vim and Emacs hackers mastered sub-millisecond symbol lookup using static tag files. It was lightning fast and zero-overhead, but predated LLMs—lacking semantic/fuzzy search and unaware of modern AI agent tool boundaries.
-2. **The Intermediate Era (Aider’s Repo Map):**
-   Paul Gauthier’s [Aider](https://aider.chat/) introduced AST parsing with PageRank to build condensed repository maps. However, it injects the entire map into every prompt turn and isn't packaged as an on-demand, queryable CLI tool for external agents.
-3. **The Heavyweight Era (Cursor, Sourcegraph Cody, Vector DBs):**
-   Modern tools turned to heavy local vector databases (ChromaDB, Pinecone, LanceDB) or cloud embedding APIs. While powerful, they introduce multi-gigabyte dependencies (PyTorch), high background memory usage, and friction in locked-down or air-gapped environments.
+**Code Memory solves both problems using pure Python standard library:**
+- **0 MB VRAM / 0 Dependencies:** Uses true **BM25 / Inverse Document Frequency (IDF)** + AST-like symbol boosting across `camelCase`, `PascalCase`, `ACRONYMS`, and `snake_case`.
+- **Zero-Hop Retrieval (1 Tool Call instead of 2):** Automatically expands the full, brace-balanced code block for the `#1 Top Match` while keeping `#2` and `#3` as compact 4-line dynamic previews. The AI agent gets the exact method code on the first call and can **immediately apply edits without an extra `view_file` round-trip**.
 
-**Code Memory synthesizes the best of these approaches:**
-- From **`ctags`**: Zero external dependencies and deterministic offline speed.
-- From **IR / [BM25](https://en.wikipedia.org/wiki/Okapi_BM25)**: Fuzzy, camelCase/snake_case sub-token retrieval without neural network overhead.
-- From **Modern Agent Tooling**: Native output formatting (`Lines 42 - 78`) specifically designed for LLM range tools (`StartLine`/`EndLine`).
+---
+
+## 🏛️ Architectural Lineage
+
+1. **The Classical Era (`ctags`, `gtags`, [BM25](https://en.wikipedia.org/wiki/Okapi_BM25)):** Sub-millisecond lookup, zero overhead, but predated LLMs and agent range boundaries.
+2. **The Intermediate Era (Aider’s Repo Map):** Tree-sitter + PageRank maps, but injected globally into prompts rather than exposed as a lightweight, zero-dependency CLI skill.
+3. **The Heavyweight Vector Era (ChromaDB, Local Embeddings):** High RAM/VRAM overhead, slow indexing, and dependency hell (`pip install torch chromadb`).
+
+**Code Memory synthesizes the sweet spot:** `ctags` speed + `BM25/IDF` sub-token ranking + brace-aligned slicing for LLM tools.
 
 ---
 
@@ -31,37 +38,33 @@ Code discovery and retrieval have evolved through three distinct eras:
 
 | Task Type | Recommended Strategy | Reason |
 | :--- | :--- | :--- |
-| **Branch / PR Reviews & Git Diffs** | 🛑 Use native `git diff` / `git log` | Git already isolates the exact line changes; indexing adds unnecessary overhead. |
+| **Branch / PR Reviews & Git Diffs** | 🛑 Use native `git diff` / `git log` | Git already isolates exact line changes; indexing adds unnecessary overhead. |
 | **Small Files (<300 lines)** | 🛑 Direct read (`view_file`) | Fits comfortably in context; chunking provides marginal benefit. |
 | **Feature Work & Unknown Call Sites** | ⚡ **Use Code Memory** | Pinpoints exact function boundaries across unfamiliar multi-layer repos. |
-| **Monolithic Files (>300 lines)** | ⚡ **Use Code Memory** | Avoids dumping thousands of lines, saving 80–90% of context tokens. |
-| **Exploratory Bug Hunting** | ⚡ **Use Code Memory** | Rapidly surfaces business logic and formula definitions. |
+| **Monolithic Files (>300 lines)** | ⚡ **Use Code Memory** | Avoids dumping thousands of lines, saving 80–90% of context tokens & prefill time. |
+| **Local LLM Coding (7B–32B Models)** | ⚡ **Use Code Memory** | Keeps context under 1,500 tokens so quantized models stay sharp and fast. |
 
 ---
 
-## 🚀 Key Capabilities (What It Can Do)
+## 🚀 Key Capabilities
 
-- **Definition & AST Boundary Snapping**: Automatically detects `class`, `Widget`, `Future<`, `void`, `def`, `interface`, and method declarations, snapping chunk boundaries directly to enclosing code blocks so functions are **never cut in half**.
-- **Symbol & Identifier Boosting**: Applies a $2.5\times$ relevance multiplier when searches match declared symbol names, ranking exact implementations above test files or comment mentions.
-- **Git Branch & Commit Auto-Refresh**: Tracks `git rev-parse HEAD` in the index metadata. When you switch git branches or pull changes, running a search transparently detects the delta and updates the index in ~0.15s with zero manual reindexing.
-- **Multi-Language Out of the Box**: Indexes Dart, C#, TypeScript, JavaScript, Python, SQL, Vue, React (JSX/TSX), HTML, CSS, and Markdown.
-- **Zero External Dependencies**: Standard Python standard library only (`re`, `math`, `json`, `pathlib`, `subprocess`). No PyTorch, ChromaDB, vector databases, or OpenAI API keys needed.
-- **Blazing Fast**: Indexes 10,000 lines of code in < 0.2s; executes sub-millisecond searches.
-- **Agent Native**: Output is tailored specifically for LLM range tools (`StartLine` / `EndLine` coordinates), cutting context window consumption by 80–90%.
-- **Cross-Platform**: Handles Windows console encodings (UTF-8, cp1251, cp1252) and Linux/macOS seamlessly.
+- **Zero-Hop Smart Output**: Rank `#1` automatically outputs the full brace-aligned method slice (`[TOP MATCH - FULL SLICE]`) with line numbers (`L42 | ...`), eliminating the extra `view_file` step. Ranks `#2` and `#3` show 4-line dynamic hit previews.
+- **Smart Start & End Boundary Snapping**: Detects `class`, `interface`, `record`, `mixin`, `struct`, `fn`, `func`, `def`, `Widget`, `Future<T>`, `Task<T>`, and methods. Tracks `{ ... }` brace balance so functions are **cleanly framed instead of cut in half**.
+- **True IDF + Symbol Boosting**: Rare domain identifiers (`RefreshTokenValidator`) automatically outweigh common words (`get`, `user`, `string`), with a priority boost when matching declared symbol names.
+- **Git & Working-Tree Auto-Refresh**: Tracks `git rev-parse HEAD`, uncommitted `git status --porcelain`, and file `mtime`. Editing a file or switching branches triggers an automatic ~0.15s refresh on the next search.
+- **Git-Clean by Design**: Automatically adds `.code_index.json` to `.git/info/exclude` so AI agents never commit the index.
+- **Multi-Language Out of the Box**: C#, Dart/Flutter, TypeScript, JavaScript, Python, Go, Rust, Java, Kotlin, C/C++, PHP, Ruby, SQL, Vue, JSX/TSX, HTML, and CSS while ignoring build artifacts (`bin`, `obj`, `.dart_tool`, `node_modules`, `*.g.cs`, `*.g.dart`, `*.freezed.dart`).
 
 ---
 
-## 🤖 Autonomous AI Workflow (Zero Manual Typing)
-
-You don't need to run search commands manually. The AI agent executes this tool autonomously:
+## 🤖 Zero-Hop Autonomous Workflow
 
 ```mermaid
 flowchart LR
-    User["Developer Request<br/>'Add refresh token flow'"] --> Agent["AI Coding Agent<br/>(Claude, GPT, Gemini)"]
-    Agent -->|Autonomously calls| CM["code_memory.py search"]
-    CM -->|Returns exact slice| Slice["📍 auth.js (Lines 42-78)"]
-    Slice -->|Surgical read/edit| Fix["Atomic Edit<br/>~300 tokens used"]
+    User["Developer Prompt<br/>'Fix token expiry check'"] --> Agent["AI Agent<br/>(Gemini Flash / Local Qwen / Claude)"]
+    Agent -->|1. Calls search| CM["code_memory.py search"]
+    CM -->|Returns full #1 method<br/>+ #2/#3 previews| Slice["📍 auth.ts (Lines 42-68)<br/>[TOP MATCH - FULL SLICE]"]
+    Slice -->|2. Direct surgical edit<br/>(No view_file needed!)| Fix["Atomic Edit<br/>~350 tokens total"]
 ```
 
 ### 1. Give the Skill to Your Agent
@@ -77,8 +80,8 @@ Ask your agent to implement a feature, find a bug, or explore the architecture:
 The AI agent will:
 1. Detect that the repository has large/monolithic files.
 2. Autonomously execute `python scripts/code_memory.py search "session refresh"`.
-3. Receive the exact file and line bounds (`Lines 42 - 78`).
-4. Read and modify *only* that slice—saving 80–90% of context tokens with zero token bloat.
+3. Receive the exact file and line bounds with full top match slice (`[TOP MATCH - FULL SLICE]`).
+4. Apply the edit directly—saving 80–90% of context tokens with zero token bloat and no extra round-trip.
 
 ---
 
@@ -87,25 +90,11 @@ The AI agent will:
 If you ever want to test or inspect the index manually:
 
 ```bash
-# Rebuild the local chunk index (.code_index.json)
-python scripts/code_memory.py index
-
-# Search for symbols or concepts
+# Search for symbols or concepts (auto-indexes if needed!)
 python scripts/code_memory.py search "jwt refresh token expiry middleware"
-```
 
-**Output:**
-```text
-🔍 Top relevant code locations for: 'jwt refresh token expiry middleware'
-============================================================
-📍 src/middleware/auth.js (Lines 42 - 78) [Score: 0.315]
-   | export async function verifyRefreshToken(token) {
-   |     const decoded = await jwt.verify(token, SECRET);
-   |     if (Date.now() >= decoded.exp * 1000) throw new Error("Expired");
-------------------------------------------------------------
-📍 src/controllers/authController.js (Lines 112 - 145) [Score: 0.284]
-   | const newToken = await refreshUserSession(refreshToken);
-------------------------------------------------------------
+# Optional: Force full index rebuild
+python scripts/code_memory.py index
 ```
 
 ---
