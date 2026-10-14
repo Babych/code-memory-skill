@@ -34,7 +34,7 @@ DEFAULT_EXTS = {
 }
 
 DEFAULT_IGNORE_DIRS = {
-    ".git", "node_modules", ".gemini", ".cursor", ".windsurf", ".claude", ".aider",
+    ".git", "node_modules", ".gemini", ".cursor", ".windsurf", ".claude", ".aider", ".agent",
     "dist", "build", "out", "target", "vendor", "coverage",
     ".wrangler", "__pycache__", ".venv", "venv", "env",
     "bin", "obj", ".vs", ".idea", ".dart_tool", ".pub-cache", ".next", ".nuxt"
@@ -355,7 +355,8 @@ def build_or_update_index(root_dir=".", force_full=False, quiet=False):
 def extract_chunk_view(root_dir, file_rel_path, start_line, end_line, query_tokens, full_slice=False, fallback_header=""):
     """
     Reads the file slice.
-    If full_slice=True (used for Top-1 Zero-Hop result), returns all lines in the chunk with line numbers.
+    If full_slice=True (used for Top-1 Zero-Hop result), returns exact untruncated lines
+    with line numbers so agents can perform immediate surgical edits without calling Read/view_file.
     Otherwise, returns a compact 4-line dynamic preview centered on the best keyword match.
     """
     fpath = Path(root_dir) / file_rel_path
@@ -366,7 +367,12 @@ def extract_chunk_view(root_dir, file_rel_path, start_line, end_line, query_toke
             return [(start_line, fallback_header)]
 
         if full_slice:
-            return [(start_line + idx, text[:120]) for idx, text in enumerate(chunk_lines)]
+            # Preserve exact line text (up to 800 chars safety guard against minified lines)
+            # so agent Edit/replace tools match exact indentation and line endings.
+            return [
+                (start_line + idx, text.rstrip("\r\n") if len(text) <= 800 else text[:800] + " ...")
+                for idx, text in enumerate(chunk_lines)
+            ]
 
         scored_lines = []
         for idx, text in enumerate(chunk_lines):
