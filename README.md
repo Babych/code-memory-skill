@@ -62,9 +62,9 @@ When AI coding agents navigate repositories with large files (1,000–4,000+ lin
 ```mermaid
 flowchart LR
     User["Developer Prompt<br/>'Fix token expiry check'"] --> Agent["AI Agent<br/>(Gemini Flash / Local Qwen / Claude)"]
-    Agent -->|1. Calls search| CM["code_memory.py search"]
-    CM -->|Returns full #1 method<br/>+ #2/#3 previews| Slice["📍 auth.ts (Lines 42-68)<br/>[TOP MATCH - FULL SLICE]"]
-    Slice -->|2. Direct surgical edit<br/>(No view_file needed!)| Fix["Atomic Edit<br/>~350 tokens total"]
+    Agent -->|"1. Calls search"| CM["code_memory.py search"]
+    CM -->|"Returns full #1 method + previews"| Slice["auth.ts (Lines 42-68)<br/>[TOP MATCH - FULL SLICE]"]
+    Slice -->|"2. Direct surgical edit - no view_file needed"| Fix["Atomic Edit<br/>~350 tokens total"]
 ```
 
 ### 1. Give the Skill to Your Agent
