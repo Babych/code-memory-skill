@@ -1,5 +1,5 @@
 ---
-name: code-memory
+name: zero-hop-code-skill
 description: >-
   Zero-dependency, zero-VRAM local BM25/IDF & AST-boundary codebase search skill.
   Use before Grep or Read when locating business logic, symbols, or call sites across
@@ -7,7 +7,7 @@ description: >-
   method slice for the #1 match so you can edit immediately in a single hop.
 ---
 
-# Code Memory: Zero-Hop Token-Saving Codebase Retrieval
+# Zero-Hop Code Skill: Token-Saving Codebase Retrieval
 
 When refactoring or building features in repositories with large files (>300 lines) or multi-layered architectures, running repetitive `grep` searches or reading full files exhausts context quotas, slows down prompt processing (TTFT), and degrades reasoning accuracy.
 

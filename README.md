@@ -1,4 +1,4 @@
-# ⚡ Code Memory Skill
+# ⚡ Zero-Hop Code Skill
 
 > **Zero-dependency, 0 MB VRAM local BM25/IDF & AST-boundary codebase search skill for AI coding agents (Claude Code, Gemini CLI, Antigravity, Cursor, Windsurf, Continue.dev, Cline / Roo Code, Aider).**  
 > Reduces LLM context token usage and local Prompt Processing time (TTFT) by **80–90%** while cutting agent tool-call round-trips in half.
