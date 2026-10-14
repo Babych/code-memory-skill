@@ -74,7 +74,17 @@ When renaming a method, modifying an interface, or tracking down all usages acro
 python scripts/code_memory.py refs "<symbolName>"
 ```
 
-### 4. Optional CLI Flags
+### 4. File & Codebase Outline (`outline`)
+When orienting in an unfamiliar codebase or exploring a file's API surface without reading the full implementation:
+```bash
+# Outline a single file (class/function signatures with line numbers)
+python scripts/code_memory.py outline src/controllers/authController.ts
+
+# Outline all source files in the repository
+python scripts/code_memory.py outline
+```
+
+### 5. Optional CLI Flags
 - `--top <N>` or `-k <N>`: Change number of returned matches (default: `3`).
 - `--full`: Expand full brace-aligned slices for **all** top matches instead of just `#1`.
 - `--brief`: Show compact 4-line previews for all matches.

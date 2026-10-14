@@ -447,6 +447,60 @@ def search_references(symbol, root_dir="."):
     print(f"Found {matches} reference locations.")
 
 
+def outline(target_file=None, root_dir="."):
+    """
+    Prints a compact outline of class/function/method signatures with line numbers.
+    If target_file is given, outlines that single file.
+    Otherwise, outlines all source files in the repository.
+    """
+    root = Path(root_dir).resolve()
+
+    if target_file:
+        fpath = root / target_file
+        if not fpath.exists():
+            print(f"❌ File not found: {target_file}")
+            return
+        _outline_single_file(fpath, target_file)
+    else:
+        file_count = 0
+        for path, _ in iter_source_files(root_dir):
+            rel_path = path.relative_to(root).as_posix()
+            if _outline_single_file(path, rel_path):
+                file_count += 1
+        if file_count == 0:
+            print("❌ No source files found.")
+
+
+def _outline_single_file(path, rel_path):
+    """Prints type and function definition signatures for a single file."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception:
+        return False
+
+    if not lines:
+        return False
+
+    def_indices, line_symbols = extract_symbols_and_def_lines(lines)
+    if not def_indices:
+        return False
+
+    print(f"\n📄 {rel_path} ({len(lines)} lines)")
+    print("-" * 60)
+    for idx in def_indices:
+        line_text = lines[idx].rstrip()
+        # Determine indent depth for visual hierarchy (types vs methods)
+        indent = len(line_text) - len(line_text.lstrip())
+        prefix = "  " if indent > 0 else ""
+        # Truncate very long signatures (e.g. generic constraints) for readability
+        display = line_text.strip()
+        if len(display) > 120:
+            display = display[:117] + "..."
+        print(f"  {prefix}L{idx + 1:<4} │ {display}")
+    print()
+    return True
+
+
 def search(query, top_k=3, mode="smart", root_dir="."):
     chunks = build_or_update_index(root_dir, force_full=False, quiet=True)
 
@@ -574,6 +628,7 @@ if __name__ == "__main__":
         print("Usage:")
         print("  python code_memory.py search <query> [--top 3] [--brief|--full] [--path .]")
         print("  python code_memory.py refs <symbol>")
+        print("  python code_memory.py outline [file] [--path .]")
         print("  python code_memory.py test")
         print("  python code_memory.py index [path]")
         sys.exit(0)
@@ -597,6 +652,18 @@ if __name__ == "__main__":
             search_references(symbol)
         else:
             print("❌ Please specify a symbol to find references for.")
+    elif cmd == "outline":
+        target_file = None
+        root_dir = "."
+        i = 2
+        while i < len(sys.argv):
+            if sys.argv[i] in ("--path", "-p") and i + 1 < len(sys.argv):
+                root_dir = sys.argv[i + 1]
+                i += 2
+            else:
+                target_file = sys.argv[i]
+                i += 1
+        outline(target_file=target_file, root_dir=root_dir)
     elif cmd == "search":
         q, k, m, r_dir = parse_cli_args(sys.argv[2:])
         search(q, top_k=k, mode=m, root_dir=r_dir)

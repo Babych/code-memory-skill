@@ -56,6 +56,7 @@ When AI coding agents navigate repositories with large files (1,000–4,000+ lin
 - **Git & Working-Tree Delta Refresh (~0.15s)**: Tracks `git rev-parse HEAD`, uncommitted `git status --porcelain`, and file `mtime`. Editing a file or switching branches triggers an automatic delta update on the next search—only re-parsing modified files.
 - **Git-Clean by Design**: Automatically adds `.code_index.json` to `.git/info/exclude` so AI agents never pollute `git status` or commit the index.
 - **Multi-Language Out of the Box**: C#, Dart/Flutter, TypeScript, JavaScript, Python, Go, Rust, Java, Kotlin, C/C++, PHP, Ruby, SQL, Vue, JSX/TSX, HTML, and CSS while ignoring build artifacts (`bin`, `obj`, `.dart_tool`, `node_modules`, `*.g.cs`, `*.g.dart`, `*.freezed.dart`).
+- **File & Codebase Outline**: `outline` subcommand prints a compact map of class/function/method signatures with line numbers and visual indent hierarchy — ideal for orienting in unfamiliar files without reading full implementations.
 
 ---
 
@@ -105,6 +106,12 @@ python scripts/code_memory.py search "jwt refresh token expiry middleware"
 
 # Find all reference call sites across codebase (guaranteed no omissions)
 python scripts/code_memory.py refs "verifyRefreshToken"
+
+# Outline a file's API surface (class/function signatures with line numbers)
+python scripts/code_memory.py outline src/controllers/authController.ts
+
+# Outline all source files in the repo
+python scripts/code_memory.py outline
 
 # Optional flags:
 #   --top, -k <N>   Number of results to return (default: 3)
