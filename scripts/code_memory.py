@@ -239,7 +239,7 @@ def ensure_git_exclude(root_dir="."):
 
 
 def chunk_single_file(path, rel_path):
-    """Chunks a single source file into boundary-aligned blocks."""
+    """Chunks a single source file into boundary-aligned blocks anchored to definitions."""
     file_chunks = []
     content = path.read_text(encoding="utf-8", errors="ignore")
     lines = content.splitlines()
@@ -251,22 +251,40 @@ def chunk_single_file(path, rel_path):
     def_indices, line_symbols = extract_symbols_and_def_lines(lines)
     def_set = set(def_indices)
 
-    step = 28
-    i = 0
+    if not def_indices:
+        step = 35
+        i = 0
+        while i < n_lines:
+            start_line = i
+            end_line = min(n_lines, start_line + 50)
+            chunk_lines = lines[start_line:end_line]
+            if chunk_lines:
+                chunk_text = "\n".join(chunk_lines)
+                words = tokenize(chunk_text)
+                if words:
+                    file_chunks.append({
+                        "file": rel_path,
+                        "start_line": start_line + 1,
+                        "end_line": end_line,
+                        "total_lines": n_lines,
+                        "truncated": end_line < n_lines,
+                        "words": list(set(words)),
+                        "symbols": [],
+                        "header": chunk_lines[0].strip()[:100]
+                    })
+            i += step
+        return file_chunks
 
-    while i < n_lines:
-        start_line = i
-        matched_def = i
-        for offset in range(-4, 7):
-            candidate = i + offset
-            if 0 <= candidate < n_lines and candidate in def_set:
-                matched_def = candidate
-                start_line = include_leading_decorators(lines, candidate)
-                break
+    processed_ranges = []
+    for def_idx in def_indices:
+        start_line = include_leading_decorators(lines, def_idx)
+        if processed_ranges and start_line < processed_ranges[-1]:
+            continue
 
-        end_line = compute_smart_end_line(lines, start_line, matched_def, def_set, is_python=is_python)
+        end_line = compute_smart_end_line(lines, start_line, def_idx, def_set, is_python=is_python)
+        processed_ranges.append(end_line)
+
         chunk_lines = lines[start_line:end_line]
-
         if chunk_lines:
             chunk_text = "\n".join(chunk_lines)
             words = tokenize(chunk_text)
@@ -276,7 +294,7 @@ def chunk_single_file(path, rel_path):
                     if line_idx in line_symbols:
                         symbols.extend(line_symbols[line_idx])
 
-                is_truncated = end_line < n_lines and (end_line - start_line) >= 64
+                is_truncated = end_line < n_lines and (end_line - start_line) >= 80
                 file_chunks.append({
                     "file": rel_path,
                     "start_line": start_line + 1,
@@ -287,9 +305,6 @@ def chunk_single_file(path, rel_path):
                     "symbols": list(set(symbols)),
                     "header": chunk_lines[0].strip()[:100]
                 })
-
-        next_step = max(start_line + step, end_line - 6)
-        i = next_step if next_step > i else i + step
 
     return file_chunks
 
