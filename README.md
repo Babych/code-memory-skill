@@ -64,12 +64,12 @@ Drop the skill directly into your coding agent's skill directory:
 
 **Claude Code (`.claude/skills`):**
 ```bash
-git clone [https://github.com/babych/code-memory-skill.git](https://github.com/babych/code-memory-skill.git) .claude/skills/code-memory
+git clone https://github.com/babych/zero-hop-code-skill.git .claude/skills/code-memory
 ```
 
 **Gemini CLI / Antigravity (`.gemini/skills` or `.agent/skills`):**
 ```bash
-git clone [https://github.com/babych/code-memory-skill.git](https://github.com/babych/code-memory-skill.git) .gemini/skills/code-memory
+git clone https://github.com/babych/zero-hop-code-skill.git .gemini/skills/code-memory
 ```
 
 **Cursor / Windsurf / Cline / Aider:**

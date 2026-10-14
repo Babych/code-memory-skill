@@ -4,7 +4,7 @@ Code Memory: Zero-dependency, 0-VRAM local BM25/IDF & symbol search for AI codin
 Features incremental delta-indexing, decorator-aware AST boundary snapping,
 and Zero-Hop retrieval for Cloud (Gemini, Claude, GPT) and Local LLMs (Ollama, llama.cpp).
 
-Author: Dmytro Babych (https://github.com/babych/code-memory-skill)
+Author: Dmytro Babych (https://github.com/babych/zero-hop-code-skill)
 License: MIT (c) 2026 Dmytro Babych
 """
 
