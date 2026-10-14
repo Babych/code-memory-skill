@@ -574,11 +574,21 @@ if __name__ == "__main__":
         print("Usage:")
         print("  python code_memory.py search <query> [--top 3] [--brief|--full] [--path .]")
         print("  python code_memory.py refs <symbol>")
+        print("  python code_memory.py test")
         print("  python code_memory.py index [path]")
         sys.exit(0)
 
     cmd = sys.argv[1].lower()
-    if cmd == "index":
+    if cmd == "test":
+        import unittest
+        tests_dir = Path(__file__).resolve().parent.parent / "tests"
+        if not tests_dir.exists():
+            tests_dir = Path("tests")
+        suite = unittest.defaultTestLoader.discover(str(tests_dir), pattern="test_*.py")
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        sys.exit(0 if result.wasSuccessful() else 1)
+    elif cmd == "index":
         target_dir = sys.argv[2] if len(sys.argv) > 2 and os.path.isdir(sys.argv[2]) else "."
         build_or_update_index(target_dir, force_full=True, quiet=False)
     elif cmd == "refs":
