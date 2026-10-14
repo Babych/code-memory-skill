@@ -85,8 +85,9 @@ STOP_WORDS = {
 
 def tokenize(text, remove_stopwords=True):
     """Splits camelCase, PascalCase, ACRONYMS, snake_case, and multilingual words."""
-    text = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1 \2', text)
-    text = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', text)
+    # Latin and Cyrillic uppercase/lowercase splitting
+    text = re.sub(r'([A-Z\u0410-\u042F]+)([A-Z\u0410-\u042F][a-z\u0430-\u044F])', r'\1 \2', text)
+    text = re.sub(r'([a-z0-9\u0430-\u044F])([A-Z\u0410-\u042F])', r'\1 \2', text)
     text = text.replace('_', ' ').replace('-', ' ')
     tokens = re.findall(r'[a-zA-Z0-9\u0400-\u04FF]+', text.lower())
     if remove_stopwords:
@@ -148,9 +149,7 @@ def compute_smart_end_line(lines, start_line, def_idx, def_set, is_python=False,
     - For brace languages: strips strings/comments and tracks { ... } balance.
     """
     n_lines = len(lines)
-    if start_line + target_size >= n_lines:
-        return n_lines
-
+    effective_min = min(min_size, 10)
     if is_python and def_idx < n_lines:
         base_indent = len(lines[def_idx]) - len(lines[def_idx].lstrip())
         for idx in range(def_idx + 1, min(n_lines, start_line + max_size)):
@@ -158,7 +157,7 @@ def compute_smart_end_line(lines, start_line, def_idx, def_set, is_python=False,
             if not stripped or stripped.startswith("#"):
                 continue
             curr_indent = len(lines[idx]) - len(lines[idx].lstrip())
-            if curr_indent <= base_indent and (idx - start_line) >= 10:
+            if curr_indent <= base_indent and (idx - start_line) >= effective_min:
                 return include_leading_decorators(lines, idx)
     else:
         brace_balance = 0
@@ -174,7 +173,7 @@ def compute_smart_end_line(lines, start_line, def_idx, def_set, is_python=False,
                 saw_open_brace = True
             brace_balance += (open_c - close_c)
 
-            if saw_open_brace and brace_balance <= 0 and (idx - start_line) >= 10:
+            if saw_open_brace and brace_balance <= 0 and (idx - start_line) >= effective_min:
                 return idx + 1
 
     # Fallback: snap to nearest blank line around target_size
@@ -294,6 +293,7 @@ def chunk_single_file(path, rel_path):
                     if line_idx in line_symbols:
                         symbols.extend(line_symbols[line_idx])
 
+                all_words = list(set(words).union(set(symbols)))
                 is_truncated = end_line < n_lines and (end_line - start_line) >= 80
                 file_chunks.append({
                     "file": rel_path,
@@ -301,7 +301,7 @@ def chunk_single_file(path, rel_path):
                     "end_line": end_line,
                     "total_lines": n_lines,
                     "truncated": is_truncated,
-                    "words": list(set(words)),
+                    "words": all_words,
                     "symbols": list(set(symbols)),
                     "header": chunk_lines[0].strip()[:100]
                 })

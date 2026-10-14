@@ -110,6 +110,9 @@ python scripts/code_memory.py search "jwt refresh token expiry middleware"
 
 # Optional: Force a full index rebuild manually
 python scripts/code_memory.py index
+
+# Run unit tests (0 external dependencies)
+python -m unittest discover -s tests -v
 ```
 
 ---
